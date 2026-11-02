@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-env-sample-app
+  namespace: argocd
+  labels:
+    example: "03-applicationset"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  goTemplate: true
+  generators:
+    - list:
+        elements:
+          - env: dev
+            namespace: sample-app-dev
+            cluster: in-cluster
+            server: https://kubernetes.default.svc
+            targetRevision: main
+            autoSync: true
+          - env: prod
+            namespace: sample-app-prod
+            cluster: in-cluster
+            server: https://kubernetes.default.svc
+            targetRevision: main
+            autoSync: false
+  template:
+    metadata:
+      name: '{{.env}}-sample-app'
+      labels:
+        environment: '{{.env}}'
+        managed-by: applicationset
+        app.kubernetes.io/part-of: argo-showcase
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/BGLuis/argo-showcase.git
+        targetRevision: '{{.targetRevision}}'
+        path: 'argocd/sample-app/overlays/{{.env}}'
+      destination:
+        server: '{{.server}}'
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true

@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: sequential-parallel-steps-
+  labels:
+    example: "02-sequential-parallel-steps"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: pipeline-steps
+  templates:
+    - name: pipeline-steps
+      steps:
+        # Step 1: Sequential Preparation
+        - - name: prepare-environment
+            template: run-task
+            arguments:
+              parameters:
+                - name: message
+                  value: "Phase 1: Environment initialization and dependency resolution."
+                - name: duration
+                  value: "2"
+
+        # Step 2: Parallel Execution (multiple tasks running concurrently in the same step matrix)
+        - - name: build-frontend
+            template: run-task
+            arguments:
+              parameters:
+                - name: message
+                  value: "Phase 2A (Parallel): Compiling TypeScript UI and assets."
+                - name: duration
+                  value: "3"
+          - name: test-backend-unit
+            template: run-task
+            arguments:
+              parameters:
+                - name: message
+                  value: "Phase 2B (Parallel): Running unit test suite across microservices."
+                - name: duration
+                  value: "3"
+          - name: security-static-analysis
+            template: run-task
+            arguments:
+              parameters:
+                - name: message
+                  value: "Phase 2C (Parallel): Executing SAST security and vulnerability scan."
+                - name: duration
+                  value: "2"
+
+        # Step 3: Sequential Finalization (waits for all parallel branches in Step 2 to succeed)
+        - - name: finalize-and-aggregate
+            template: run-task
+            arguments:
+              parameters:
+                - name: message
+                  value: "Phase 3: All parallel jobs succeeded! Packaging release candidate."
+                - name: duration
+                  value: "1"
+
+    - name: run-task
+      inputs:
+        parameters:
+          - name: message
+          - name: duration
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "🚀 [START] {{inputs.parameters.message}}"
+            sleep {{inputs.parameters.duration}}
+            echo "✅ [DONE] Finished in {{inputs.parameters.duration}}s."

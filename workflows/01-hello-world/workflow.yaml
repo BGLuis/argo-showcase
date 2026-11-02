@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-world-
+  labels:
+    example: "01-hello-world"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: hello-entrypoint
+  templates:
+    - name: hello-entrypoint
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "=========================================================="
+            echo " 🐙 Welcome to Argo Workflows & Argo CD Showcase!"
+            echo "=========================================================="
+            echo "Host Architecture: $(uname -m)"
+            echo "Current Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "Executing inside a cloud-native Kubernetes pod container."
+            echo "Hello, Cloud Native World!"
+            echo "=========================================================="

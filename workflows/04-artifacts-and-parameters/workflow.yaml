@@ -1,0 +1,92 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: artifacts-and-parameters-
+  labels:
+    example: "04-artifacts-and-parameters"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: data-passing-pipeline
+  templates:
+    - name: data-passing-pipeline
+      steps:
+        # Step 1: Produces both dynamic parameters and file artifacts
+        - - name: produce-artifacts-and-params
+            template: generator-step
+
+        # Step 2: Consumes parameters and artifacts from the previous step
+        - - name: consume-artifacts-and-params
+            template: consumer-step
+            arguments:
+              parameters:
+                - name: release-version
+                  value: "{{steps.produce-artifacts-and-params.outputs.parameters.version}}"
+                - name: commit-sha
+                  value: "{{steps.produce-artifacts-and-params.outputs.parameters.commit-sha}}"
+              artifacts:
+                - name: build-report
+                  from: "{{steps.produce-artifacts-and-params.outputs.artifacts.build-manifest}}"
+
+    # Generator Template
+    - name: generator-step
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "📦 [GENERATOR] Generating build metadata and report..."
+            
+            # Generate parameter files
+            echo "v2.5.0-rc.1" > /tmp/version.txt
+            echo "a1b2c3d4e5f67890" > /tmp/sha.txt
+            
+            # Generate artifact JSON file
+            cat <<EOF > /tmp/build-manifest.json
+            {
+              "project": "argo-showcase",
+              "artifact": "microservice-api",
+              "version": "v2.5.0-rc.1",
+              "commit": "a1b2c3d4e5f67890",
+              "compiled_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+              "target_runtime": "linux-amd64",
+              "checksum_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+            EOF
+            
+            echo "✅ Created /tmp/version.txt: $(cat /tmp/version.txt)"
+            echo "✅ Created /tmp/sha.txt: $(cat /tmp/sha.txt)"
+            echo "✅ Created /tmp/build-manifest.json with artifact metadata."
+      outputs:
+        parameters:
+          - name: version
+            valueFrom:
+              path: /tmp/version.txt
+          - name: commit-sha
+            valueFrom:
+              path: /tmp/sha.txt
+        artifacts:
+          - name: build-manifest
+            path: /tmp/build-manifest.json
+
+    # Consumer Template
+    - name: consumer-step
+      inputs:
+        parameters:
+          - name: release-version
+          - name: commit-sha
+        artifacts:
+          - name: build-report
+            path: /inputs/artifacts/manifest.json
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "📥 [CONSUMER] Received inputs from previous stage:"
+            echo "   Parameter Release Version: {{inputs.parameters.release-version}}"
+            echo "   Parameter Commit SHA:      {{inputs.parameters.commit-sha}}"
+            echo ""
+            echo "📄 [CONSUMER] Reading downloaded artifact from /inputs/artifacts/manifest.json:"
+            cat /inputs/artifacts/manifest.json
+            echo ""
+            echo "🎉 [CONSUMER] Verified integrity of shared artifact and parameters!"

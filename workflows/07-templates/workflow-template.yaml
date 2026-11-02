@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: reusable-ci-templates
+  labels:
+    example: "07-templates"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  templates:
+    - name: notify-event
+      inputs:
+        parameters:
+          - name: channel
+            default: "#devops-alerts"
+          - name: status
+            default: "SUCCESS"
+          - name: message
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "📢 [WORKFLOW TEMPLATE: NOTIFY]"
+            echo "   Channel: {{inputs.parameters.channel}}"
+            echo "   Status:  {{inputs.parameters.status}}"
+            echo "   Message: {{inputs.parameters.message}}"
+            echo "   Dispatching webhook payload to chatops provider..."
+            echo "   Delivered at $(date -u '+%Y-%m-%d %H:%M:%SZ')"
+
+    - name: security-gate-check
+      inputs:
+        parameters:
+          - name: service-name
+          - name: severity-threshold
+            default: "HIGH"
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "🛡️ [WORKFLOW TEMPLATE: SECURITY GATE]"
+            echo "   Scanning component: {{inputs.parameters.service-name}}"
+            echo "   Max allowed severity: {{inputs.parameters.severity-threshold}}"
+            echo "   Checking compliance with CIS benchmarks and policy rules..."
+            sleep 1
+            echo "   Result: Zero non-compliant findings. Security gate PASSED."

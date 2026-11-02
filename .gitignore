@@ -1,0 +1,23 @@
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Kubernetes & Cluster temporary state
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+.kube/
+
+# Temporary and log files
+*.log
+*.tmp
+tmp/
+dist/
+
+# Argo CLI temporary tokens / cache
+.argo/
+.argocd/

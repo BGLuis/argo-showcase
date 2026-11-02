@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: child-app-backend
+  namespace: argocd
+  labels:
+    tier: backend
+    parent: root-app-of-apps
+    app.kubernetes.io/part-of: argo-showcase
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BGLuis/argo-showcase.git
+    targetRevision: main
+    path: argocd/sample-app/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app-backend
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

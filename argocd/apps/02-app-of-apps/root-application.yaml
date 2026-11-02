@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app-of-apps
+  namespace: argocd
+  labels:
+    pattern: "app-of-apps"
+    example: "02-app-of-apps"
+    app.kubernetes.io/part-of: argo-showcase
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BGLuis/argo-showcase.git
+    targetRevision: main
+    path: argocd/apps/02-app-of-apps/templates
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

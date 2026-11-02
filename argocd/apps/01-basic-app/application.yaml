@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sample-app-dev
+  namespace: argocd
+  labels:
+    example: "01-basic-app"
+    app.kubernetes.io/part-of: argo-showcase
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BGLuis/argo-showcase.git
+    targetRevision: main
+    path: argocd/sample-app/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-app-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

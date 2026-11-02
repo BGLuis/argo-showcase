@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: run-workflow-template-
+  labels:
+    example: "07-templates"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: consumer-pipeline
+  templates:
+    - name: consumer-pipeline
+      steps:
+        # Step 1: Execute security gate using cluster WorkflowTemplate
+        - - name: run-security-audit
+            templateRef:
+              name: reusable-ci-templates
+              template: security-gate-check
+            arguments:
+              parameters:
+                - name: service-name
+                  value: "payments-api"
+                - name: severity-threshold
+                  value: "MEDIUM"
+
+        # Step 2: Local pipeline step
+        - - name: execute-local-build
+            template: local-build-step
+
+        # Step 3: Execute notification using cluster WorkflowTemplate
+        - - name: send-completion-notification
+            templateRef:
+              name: reusable-ci-templates
+              template: notify-event
+            arguments:
+              parameters:
+                - name: channel
+                  value: "#deployments-prod"
+                - name: status
+                  value: "SUCCESS"
+                - name: message
+                  value: "Pipeline execution completed using reusable WorkflowTemplates!"
+
+    # Local template defined in this specific workflow
+    - name: local-build-step
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "⚙️ [LOCAL STEP] Compiling binaries and assembling assets..."
+            sleep 1
+            echo "⚙️ [LOCAL STEP] Build artifact generated successfully."

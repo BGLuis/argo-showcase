@@ -1,0 +1,137 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: full-ci-cd-pipeline-
+  labels:
+    example: "06-ci-cd-pipeline"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: main-ci-cd
+  arguments:
+    parameters:
+      - name: git-repo
+        value: "https://github.com/argo-showcase/sample-app.git"
+      - name: git-branch
+        value: "main"
+      - name: image-repository
+        value: "ghcr.io/argo-showcase/sample-app"
+      - name: image-tag
+        value: "v1.3.0"
+
+  templates:
+    - name: main-ci-cd
+      dag:
+        tasks:
+          # Phase 1: Clone and validate
+          - name: git-clone-and-prep
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Clone & Validate Git Commit"
+                - name: script
+                  value: |
+                    echo "Cloning repository {{workflow.parameters.git-repo}} (branch: {{workflow.parameters.git-branch}})..."
+                    echo "HEAD commit: $(cat /proc/sys/kernel/random/uuid | cut -c1-8)"
+                    echo "Repository structure verified."
+
+          # Phase 2: Parallel Code Quality & Testing
+          - name: code-linting
+            dependencies: [git-clone-and-prep]
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Static Code Lint & Format Verification"
+                - name: script
+                  value: |
+                    echo "Checking ESLint / Shellcheck / Flake8 rules..."
+                    echo "Zero syntax or formatting errors found."
+
+          - name: unit-and-coverage-tests
+            dependencies: [git-clone-and-prep]
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Unit Tests & Code Coverage"
+                - name: script
+                  value: |
+                    echo "Running test suite: 142 passed, 0 failed, 0 skipped."
+                    echo "Coverage: 91.4% (Threshold: >= 85%). Passed!"
+
+          - name: dependency-audit
+            dependencies: [git-clone-and-prep]
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Dependency Security Audit"
+                - name: script
+                  value: |
+                    echo "Auditing npm / cargo / go.mod dependencies for CVEs..."
+                    echo "Zero critical or high severity vulnerabilities found."
+
+          # Phase 3: Container Image Build & Multi-arch Packaging
+          - name: build-container-image
+            dependencies: [code-linting, unit-and-coverage-tests, dependency-audit]
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Container Image Build (Kaniko / Buildah Engine)"
+                - name: script
+                  value: |
+                    IMAGE="{{workflow.parameters.image-repository}}:{{workflow.parameters.image-tag}}"
+                    echo "Building OCI container image: $IMAGE"
+                    echo "Optimizing layers with multi-stage build cache..."
+                    echo "Successfully built and tagged image $IMAGE"
+
+          # Phase 4: Container Vulnerability Scan
+          - name: image-security-scan
+            dependencies: [build-container-image]
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Container Vulnerability Scan (Trivy / Grype)"
+                - name: script
+                  value: |
+                    echo "Scanning image {{workflow.parameters.image-repository}}:{{workflow.parameters.image-tag}}..."
+                    echo "OS Packages: 0 vulnerabilities."
+                    echo "App Binaries: 0 vulnerabilities."
+                    echo "Image security gate: PASSED."
+
+          # Phase 5: GitOps Update & Argo CD Synchronization Trigger
+          - name: gitops-update-and-sync
+            dependencies: [image-security-scan]
+            template: run-command
+            arguments:
+              parameters:
+                - name: stage
+                  value: "GitOps Repository Tag Update & Argo CD Sync"
+                - name: script
+                  value: |
+                    echo "Updating kustomization.yaml image tag to {{workflow.parameters.image-tag}}..."
+                    echo "Creating Git commit: [GitOps] update image to {{workflow.parameters.image-tag}}"
+                    echo "Pushing changes to GitOps manifest repository..."
+                    echo "Sending webhook / API trigger to Argo CD Application: sample-app-prod..."
+                    echo "Argo CD Sync Status: Synced & Healthy!"
+
+    - name: run-command
+      inputs:
+        parameters:
+          - name: stage
+          - name: script
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "=========================================================="
+            echo "🔧 [PIPELINE STAGE] {{inputs.parameters.stage}}"
+            echo "=========================================================="
+            {{inputs.parameters.script}}
+            echo ""
+            echo "Status: SUCCESS"
+            echo "=========================================================="

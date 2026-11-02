@@ -1,0 +1,92 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: dag-pipeline-
+  labels:
+    example: "03-dag-pipeline"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: dag-diamond-orchestration
+  templates:
+    - name: dag-diamond-orchestration
+      dag:
+        tasks:
+          # Root Node
+          - name: checkout-source
+            template: worker-node
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Source Checkout & Commit Verification"
+                - name: delay
+                  value: "1"
+
+          # Level 1 Fan-out (All depend on checkout-source)
+          - name: lint-and-code-style
+            dependencies: [checkout-source]
+            template: worker-node
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Static Code Analysis & Linting"
+                - name: delay
+                  value: "2"
+
+          - name: unit-tests-services
+            dependencies: [checkout-source]
+            template: worker-node
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Unit Tests across Service Modules"
+                - name: delay
+                  value: "2"
+
+          - name: security-cve-audit
+            dependencies: [checkout-source]
+            template: worker-node
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Dependency Vulnerability & CVE Scan"
+                - name: delay
+                  value: "2"
+
+          # Level 2 Fan-in (Requires all three verification tasks above to complete)
+          - name: integration-tests
+            dependencies: [lint-and-code-style, unit-tests-services, security-cve-audit]
+            template: worker-node
+            arguments:
+              parameters:
+                - name: stage
+                  value: "End-to-End Integration Tests on Staging Mock"
+                - name: delay
+                  value: "2"
+
+          # Terminal Node (Depends on integration-tests)
+          - name: publish-release-gate
+            dependencies: [integration-tests]
+            template: worker-node
+            arguments:
+              parameters:
+                - name: stage
+                  value: "Release Gate Approved & Tag Ready"
+                - name: delay
+                  value: "1"
+
+    - name: worker-node
+      inputs:
+        parameters:
+          - name: stage
+          - name: delay
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "--------------------------------------------------------"
+            echo "💠 [DAG TASK] Starting: {{inputs.parameters.stage}}"
+            echo "   Executing on node $(hostname) at $(date -u '+%H:%M:%S UTC')"
+            sleep {{inputs.parameters.delay}}
+            echo "🎉 [DAG TASK] Complete: {{inputs.parameters.stage}}"
+            echo "--------------------------------------------------------"

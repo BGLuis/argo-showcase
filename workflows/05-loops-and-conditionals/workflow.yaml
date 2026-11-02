@@ -1,0 +1,120 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: loops-and-conditionals-
+  labels:
+    example: "05-loops-and-conditionals"
+    app.kubernetes.io/part-of: argo-showcase
+spec:
+  entrypoint: control-flow-pipeline
+  arguments:
+    parameters:
+      - name: deploy-target
+        value: "production"
+      - name: automated-tests-passed
+        value: "true"
+
+  templates:
+    - name: control-flow-pipeline
+      steps:
+        # Step 1: Loop execution using 'withItems' across multiple microservice components
+        - - name: test-matrix
+            template: test-component
+            arguments:
+              parameters:
+                - name: component
+                  value: "{{item.name}}"
+                - name: test-suite
+                  value: "{{item.suite}}"
+            withItems:
+              - { name: "auth-service", suite: "unit+jwt" }
+              - { name: "payment-service", suite: "unit+pci" }
+              - { name: "catalog-service", suite: "unit+caching" }
+              - { name: "notification-service", suite: "unit+smtp" }
+
+        # Step 2: Evaluator step determining whether to promote
+        - - name: evaluate-gate
+            template: decision-gate
+            arguments:
+              parameters:
+                - name: target
+                  value: "{{workflow.parameters.deploy-target}}"
+                - name: passed
+                  value: "{{workflow.parameters.automated-tests-passed}}"
+
+        # Step 3: Conditional branches executed using 'when'
+        - - name: production-promotion
+            template: deploy-target
+            when: "{{steps.evaluate-gate.outputs.result}} == PROMOTE_PRODUCTION"
+            arguments:
+              parameters:
+                - name: target-name
+                  value: "PRODUCTION CLUSTER (Zero-Downtime Canary)"
+          - name: staging-promotion
+            template: deploy-target
+            when: "{{steps.evaluate-gate.outputs.result}} == PROMOTE_STAGING"
+            arguments:
+              parameters:
+                - name: target-name
+                  value: "STAGING ENVIRONMENT"
+          - name: fallback-abort
+            template: abort-target
+            when: "{{steps.evaluate-gate.outputs.result}} == ABORT"
+
+    # Worker template for matrix loop
+    - name: test-component
+      inputs:
+        parameters:
+          - name: component
+          - name: test-suite
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "🧪 [MATRIX] Testing {{inputs.parameters.component}} with suite: [{{inputs.parameters.test-suite}}]..."
+            sleep 1
+            echo "✅ [PASSED] {{inputs.parameters.component}} is green."
+
+    # Gate evaluator returning dynamic output string
+    - name: decision-gate
+      inputs:
+        parameters:
+          - name: target
+          - name: passed
+      script:
+        image: alpine:3.19
+        command: [sh]
+        source: |
+          TARGET="{{inputs.parameters.target}}"
+          PASSED="{{inputs.parameters.passed}}"
+          if [ "$PASSED" != "true" ]; then
+            echo -n "ABORT"
+          elif [ "$TARGET" = "production" ]; then
+            echo -n "PROMOTE_PRODUCTION"
+          else
+            echo -n "PROMOTE_STAGING"
+          fi
+
+    # Target deployers
+    - name: deploy-target
+      inputs:
+        parameters:
+          - name: target-name
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "🚀 [CONDITIONAL EXECUTION] Triggered branch: {{inputs.parameters.target-name}}"
+            echo "   Applying rolling update manifests and checking health probes..."
+            echo "   Deployment completed successfully!"
+
+    - name: abort-target
+      container:
+        image: alpine:3.19
+        command: [sh, -c]
+        args:
+          - |
+            echo "🛑 [ABORTED] Pipeline aborted due to failing test quality gate!"
+            exit 1
