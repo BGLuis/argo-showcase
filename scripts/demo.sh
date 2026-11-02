@@ -6,6 +6,8 @@
 
 set -eo pipefail
 
+export KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+
 BOLD="\033[1m"
 GREEN="\033[1;32m"
 BLUE="\033[1;34m"
@@ -71,9 +73,12 @@ run_workflow_demo() {
                 CREATED=$(kubectl create -n argo -f "${REPO_ROOT}/${file}" -o jsonpath="{.metadata.name}" 2>/dev/null || true)
                 if [ -n "$CREATED" ]; then
                     echo -e "${GREEN}✔ Workflow submitted: ${CREATED}${RESET}"
-                    echo -e "Checking pods for 5 seconds..."
-                    sleep 3
-                    kubectl get pods -n argo -l "workflows.argoproj.io/workflow=${CREATED}" || true
+                    sleep 2
+                    echo -e "\n${BOLD}Workflow Resource Status:${RESET}"
+                    kubectl get workflow -n argo "${CREATED}" 2>/dev/null || true
+                    echo -e "\n${BOLD}Associated Pods:${RESET}"
+                    kubectl get pods -n argo -l "workflows.argoproj.io/workflow=${CREATED}" 2>/dev/null || true
+                    echo -e "\n${DIM}Follow in real-time on Web UI: https://localhost:2746${RESET}"
                 else
                     kubectl apply -n argo -f "${REPO_ROOT}/${file}" || true
                 fi
@@ -220,8 +225,24 @@ step_08() {
     cat "${REPO_ROOT}/argocd/apps/01-basic-app/application.yaml"
     echo ""
     if has_cluster; then
-        echo -e "${CYAN}To apply this application to Argo CD:${RESET}"
-        echo -e "  ${BOLD}kubectl apply -f argocd/apps/01-basic-app/application.yaml${RESET}"
+        echo -e "${CYAN}Cluster connection detected!${RESET}"
+        if [ "$AUTO_MODE" = false ]; then
+            read -p "Do you want to test deploy the sample-app directly via Kustomize? (y/N): " -r KUST_APPLY
+            if [[ "$KUST_APPLY" =~ ^[Yy]$ ]]; then
+                echo -e "${GREEN}Applying Kustomize overlay (dev) to cluster...${RESET}"
+                kubectl create namespace sample-app-dev --dry-run=client -o yaml | kubectl apply -f -
+                kubectl apply -k "${REPO_ROOT}/argocd/sample-app/overlays/dev" -n sample-app-dev
+                echo -e "\n${BOLD}Live Pods in sample-app-dev:${RESET}"
+                kubectl get pods,svc -n sample-app-dev
+            fi
+
+            read -p "Do you want to apply the Argo CD Application manifest now? (y/N): " -r APP_APPLY
+            if [[ "$APP_APPLY" =~ ^[Yy]$ ]]; then
+                echo -e "${GREEN}Applying Application to Argo CD...${RESET}"
+                kubectl apply -f "${REPO_ROOT}/argocd/apps/01-basic-app/application.yaml" || true
+                kubectl get application -n argocd sample-app-dev 2>/dev/null || true
+            fi
+        fi
     fi
     pause
 }
@@ -239,6 +260,18 @@ step_09() {
     echo ""
     echo -e "${BLUE}--- Child App Example: argocd/apps/02-app-of-apps/templates/app-frontend.yaml ---${RESET}"
     cat "${REPO_ROOT}/argocd/apps/02-app-of-apps/templates/app-frontend.yaml"
+    echo ""
+    if has_cluster; then
+        echo -e "${CYAN}Cluster connection detected!${RESET}"
+        if [ "$AUTO_MODE" = false ]; then
+            read -p "Do you want to apply the Root Application manifest to Argo CD? (y/N): " -r ROOT_APPLY
+            if [[ "$ROOT_APPLY" =~ ^[Yy]$ ]]; then
+                echo -e "${GREEN}Applying Root Application to Argo CD...${RESET}"
+                kubectl apply -f "${REPO_ROOT}/argocd/apps/02-app-of-apps/root-application.yaml" || true
+                kubectl get applications -n argocd 2>/dev/null || true
+            fi
+        fi
+    fi
     pause
 }
 
@@ -252,6 +285,18 @@ step_10() {
     echo ""
     echo -e "${BLUE}--- ApplicationSet: argocd/apps/03-applicationset/applicationset-environments.yaml ---${RESET}"
     cat "${REPO_ROOT}/argocd/apps/03-applicationset/applicationset-environments.yaml"
+    echo ""
+    if has_cluster; then
+        echo -e "${CYAN}Cluster connection detected!${RESET}"
+        if [ "$AUTO_MODE" = false ]; then
+            read -p "Do you want to apply the ApplicationSet to Argo CD? (y/N): " -r APPSET_APPLY
+            if [[ "$APPSET_APPLY" =~ ^[Yy]$ ]]; then
+                echo -e "${GREEN}Applying ApplicationSet to Argo CD...${RESET}"
+                kubectl apply -f "${REPO_ROOT}/argocd/apps/03-applicationset/applicationset-environments.yaml" || true
+                kubectl get applicationset -n argocd 2>/dev/null || true
+            fi
+        fi
+    fi
     pause
 }
 

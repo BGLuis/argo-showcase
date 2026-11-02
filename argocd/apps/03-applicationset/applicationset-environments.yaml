@@ -13,16 +13,12 @@ spec:
         elements:
           - env: dev
             namespace: sample-app-dev
-            cluster: in-cluster
             server: https://kubernetes.default.svc
             targetRevision: main
-            autoSync: true
           - env: prod
             namespace: sample-app-prod
-            cluster: in-cluster
             server: https://kubernetes.default.svc
             targetRevision: main
-            autoSync: false
   template:
     metadata:
       name: '{{.env}}-sample-app'

@@ -32,7 +32,7 @@ spec:
                 - name: script
                   value: |
                     echo "Cloning repository {{workflow.parameters.git-repo}} (branch: {{workflow.parameters.git-branch}})..."
-                    echo "HEAD commit: $(cat /proc/sys/kernel/random/uuid | cut -c1-8)"
+                    echo "HEAD commit: $(head -c 8 /proc/sys/kernel/random/uuid 2>/dev/null || date +%s | sha256sum | cut -c1-8)"
                     echo "Repository structure verified."
 
           # Phase 2: Parallel Code Quality & Testing

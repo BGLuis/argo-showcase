@@ -142,14 +142,14 @@ Se você já possui um cluster Kubernetes ativo (Minikube, K3s, EKS, GKE, AKS):
 1. **Instalar o Argo CD:**
    ```bash
    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+   kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
    ```
 
 2. **Instalar o Argo Workflows:**
    ```bash
    kubectl create namespace argo --dry-run=client -o yaml | kubectl apply -f -
    kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/quick-start-minimal.yaml
-   kubectl patch deployment argo-server -n argo --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": ["server", "--auth-mode=server"]}]'
+   kubectl -n argo set image deployment/minio main=cgr.dev/chainguard/minio:latest
    ```
 
 3. **Iniciar Redirecionamento de Portas (Port-Forward):**
